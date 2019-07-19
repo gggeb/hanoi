@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <math.h>
 
@@ -10,19 +11,11 @@
 
 #define POLES 3
 
-#define POS  (cursor / power)
-#define DISK (cursor % power)
-
-#define MIN_MOVES ((int)(pow(2, disks) + 0.5) - 1)
+#define DEFAULT_DISKS 3
+#define DEFAULT_POWER 10
 
 #define PADDING 2
 #define DISK_M  2
-
-#define DISK_WIDTH(i)  (i * DISK_M + 1)
-#define MAX_DISK_WIDTH DISK_WIDTH(disks)
-
-#define REQ_WIDTH  (POLES * (disks * DISK_M) + (POLES + 1) * PADDING)
-#define REQ_HEIGHT (disks + PADDING * 2 + 1)
 
 #define POLE_CHAR   '|'
 #define DISK_CHAR   'X'
@@ -31,9 +24,28 @@
 #define EVEN_CHAR 'E'
 #define ODD_CHAR  'O'
 
+#define COLORS_OFF -1
+
+#define POS  (cursor / power)
+#define DISK (cursor % power)
+
+#define MIN_MOVES ((int)(pow(2, disks) + 0.5) - 1)
+
+#define DISK_WIDTH(i)  (i * DISK_M + 1)
+#define MAX_DISK_WIDTH DISK_WIDTH(disks)
+
+#define REQ_WIDTH  (POLES * (disks * DISK_M) + (POLES + 1) * PADDING)
+#define REQ_HEIGHT (disks + PADDING * 2 + 1)
+
 // GLOBALS
 
-int *poles[POLES], power = 10, disks = 3, using_colors = 0, cursor, moves;
+int moves;
+int *poles[POLES];
+
+int disks = DEFAULT_DISKS, power = DEFAULT_POWER, cursor = 0;
+int using_colors = 0;
+
+int term_width, term_height;
 
 // LOGIC
 
@@ -49,11 +61,12 @@ void free_poles(void) {
         free(poles[i]);
 }
 
-void init_data(void) {
+void init_state(void) {
+    int i, j;
+
     cursor = 0;
     moves = 0;
 
-    int i, j;
     for (i = disks; i > 0; i--)
         poles[0][disks - i] = i;
 
@@ -72,7 +85,7 @@ void cursor_right(void) {
         cursor += power;
 }
 
-int *top_pos(void) {
+int *top_disk(void) {
     int i;
     for (i = 0; poles[POS][i] != EMPTY && i < disks; i++) ;
 
@@ -81,15 +94,15 @@ int *top_pos(void) {
 
 void raise_disk(void) {
     if (DISK == NO_DISK)
-        if (*top_pos() != EMPTY) {
-            cursor += *top_pos();
-            *top_pos() = EMPTY;
+        if (*top_disk() != EMPTY) {
+            cursor += *top_disk();
+            *top_disk() = EMPTY;
         }
 }
 
 void lower_disk(void) {
-    if (DISK != NO_DISK && (*top_pos() > DISK || *top_pos() == EMPTY)) {
-        *(top_pos() + 1) = DISK;
+    if (DISK != NO_DISK && (*top_disk() > DISK || *top_disk() == EMPTY)) {
+        *(top_disk() + 1) = DISK;
         cursor -= DISK;
 
         moves++;
@@ -119,20 +132,12 @@ void handle_key(int k) {
         lower_disk();
         break;
     case 'r':
-        init_data();
+        init_state();
         break;
     }
 }
 
 // TERMINAL
-
-void calculate_margins(int *xmp, int *ymp) {
-    int w, h;
-    getmaxyx(stdscr, h, w);
-    
-    *xmp = (w - REQ_WIDTH) / 2 - 1;
-    *ymp = (h - REQ_HEIGHT) / 2 - 2;
-}
 
 void init_ncurses(void) {
     initscr();
@@ -142,7 +147,7 @@ void init_ncurses(void) {
     keypad(stdscr, TRUE);
     curs_set(0);
     
-    if (has_colors() == TRUE && using_colors != -1) {
+    if (has_colors() == TRUE && using_colors != COLORS_OFF) {
         start_color();
 
         using_colors = 1;
@@ -154,16 +159,18 @@ void init_ncurses(void) {
         using_colors = 0;
 }
 
-void render_info(void) {
-    int w, h;
-    getmaxyx(stdscr, h, w);
+void calculate_margins(int *xmp, int *ymp) {
+    *xmp = (term_width - REQ_WIDTH) / 2 - 1;
+    *ymp = (term_height - REQ_HEIGHT) / 2 - 2;
+}
 
+void render_info(void) {
     if (using_colors)
         attron(COLOR_PAIR(1));
 
-    move(h - 1, 0);
+    move(term_height - 1, 0);
     printw("MOVES: %d/%d, CURSOR: %d. WIDTH: %d, HEIGHT: %d.",
-           moves, MIN_MOVES, cursor, w, h);
+           moves, MIN_MOVES, cursor, term_width, term_height);
     
     if (using_colors)
         attroff(COLOR_PAIR(1));
@@ -171,7 +178,8 @@ void render_info(void) {
 
 void render_disk(int pole, int height, int disk, char empty_char)
 {
-    int xm, ym, x, y, k;
+    int i, j, k;
+    int xm, ym, x, y;
     
     calculate_margins(&xm, &ym);
     
@@ -186,9 +194,6 @@ void render_disk(int pole, int height, int disk, char empty_char)
 
         move(y, x);
         printw("%c", empty_char);
-        
-        if (using_colors)
-            attroff(COLOR_PAIR(1));
     } else {
         x += (MAX_DISK_WIDTH - DISK_WIDTH(disk)) / 2;
 
@@ -200,23 +205,21 @@ void render_disk(int pole, int height, int disk, char empty_char)
             printw("%c", using_colors ? DISK_CHAR
                                       : (disk % 2 ? ODD_CHAR : EVEN_CHAR));
         }
-
-        if (using_colors)
-            attroff(COLOR_PAIR(disk % 2 ? 3 : 2));
     }
+
+    if (using_colors)
+        attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
 }
 
 void render(void) {
-    int w, h;
-    getmaxyx(stdscr, h, w);
+    int i, j;
 
     clear();
-    if (w < REQ_WIDTH || h < REQ_HEIGHT)
+    if (term_width < REQ_WIDTH || term_height < REQ_HEIGHT)
         printw("window is too small to render");
     else {
         render_info();
 
-        int i, j;
         for (i = 0; i < POLES; i++)
             for (j = 0; j < disks; j++)
                 render_disk(i, j, poles[i][j], POLE_CHAR);
@@ -233,6 +236,13 @@ void end_ncurses(void) {
 
 // RUNNING
 
+int is_integral(char *s) {
+    for (; *s != '\0'; s++)
+        if (!isdigit(*s))
+            return 0;
+    return 1;
+}
+
 void usage(char *prog_name) {
     printf("USAGE: %s [-h] [-nc] [-d <NUM>]\n"
            "CONTROLS:\n"
@@ -242,23 +252,22 @@ void usage(char *prog_name) {
            "\tQ to exit.\n", prog_name);
 }
 
-
-int main(int argc, char *argv[]) {
-    char *prog_name = *argv++;
+void handle_args(int argc, char *argv[]) {
+    int nd; 
+    char *end, *prog_name = *argv++;
+    
     argc--;
 
-    int nd;
-    char *end;
     for (; argc > 0; argc--, argv++)
         if (!strcmp(*argv, "-h")) {
             usage(prog_name);
-            return 0;
+            exit(0);
         } else if (!strcmp(*argv, "-nc"))
-            using_colors = -1;
+            using_colors = COLORS_OFF;
         else if (!strcmp(*argv, "-d"))
             if (argc-- > 1) {
                 nd = strtol(*(++argv), &end, 10);
-                if (end == *argv) {
+                if (end == *argv || !is_integral(*argv)) {
                     fprintf(stderr, "invalid number provided!\n");
                     exit(1);
                 } else if (nd < 1) {
@@ -267,7 +276,6 @@ int main(int argc, char *argv[]) {
                 } else {
                     disks = nd;
                     power = (int) pow(10, strlen(*argv)) + 0.5;
-                    printf("%d\n", power);
                 }
             } else {
                 fprintf(stderr, "no disk number provided!\n");
@@ -277,14 +285,21 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "invalid argument '%s'!\n", *argv);
             exit(1);
         }
+}
+
+int main(int argc, char *argv[]) {
+    int c;
+
+    handle_args(argc, argv);
 
     allocate_poles();
-    init_data();
+    init_state();
 
     init_ncurses();
 
-    int c = '\0';
     do {
+        getmaxyx(stdscr, term_height, term_width);
+
         handle_key(c);
         
         if (solved())
@@ -294,7 +309,6 @@ int main(int argc, char *argv[]) {
     } while ((c = getch()) != 'q');
 
     end_ncurses();
-
 
     if (solved())
         printf("%s! Completed in %d moves!\n",
