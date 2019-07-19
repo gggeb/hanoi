@@ -37,6 +37,31 @@
 #define REQ_WIDTH  (POLES * (disks * DISK_M) + (POLES + 1) * PADDING)
 #define REQ_HEIGHT (disks + PADDING * 2 + 1)
 
+// FUNCTION DECLARATIONS
+
+void allocate_poles(void);
+void free_poles(void);
+void init_state(void);
+void cursor_left(void);
+void cursor_right(void);
+int *top_disk(void);
+void raise_disk(void);
+void lower_disk(void);
+int solved(void);
+void handle_key(int);
+
+void init_ncurses(void);
+void calculate_margins(int *, int *);
+void render_info(void);
+void render_disk(int, int, int, char);
+void render(void);
+void end_ncurses(void);
+
+int is_integral(char *);
+
+void usage(char *);
+void handle_args(int, char *[]);
+
 // GLOBALS
 
 int moves;
@@ -178,8 +203,7 @@ void render_info(void) {
 
 void render_disk(int pole, int height, int disk, char empty_char)
 {
-    int i, j, k;
-    int xm, ym, x, y;
+    int xm, ym, x, y, k;
     
     calculate_margins(&xm, &ym);
     
