@@ -29,7 +29,7 @@
 #define POS  (cursor / power)
 #define DISK (cursor % power)
 
-#define MIN_MOVES ((int)(pow(2, disks) + 0.5) - 1)
+#define MIN_MOVES ((unsigned long)(pow(2, disks) + 0.5) - 1)
 
 #define DISK_WIDTH(i)  (i * DISK_M + 1)
 #define MAX_DISK_WIDTH DISK_WIDTH(disks)
@@ -64,7 +64,7 @@ void handle_args(int, char *[]);
 
 // GLOBALS
 
-int moves;
+unsigned long moves;
 int *poles[POLES];
 
 int disks = DEFAULT_DISKS, power = DEFAULT_POWER, cursor = 0;
@@ -194,7 +194,7 @@ void render_info(void) {
         attron(COLOR_PAIR(1));
 
     move(term_height - 1, 0);
-    printw("MOVES: %d/%d, CURSOR: %d. WIDTH: %d, HEIGHT: %d.",
+    printw("MOVES: %lu/%lu, CURSOR: %d. WIDTH: %d, HEIGHT: %d.",
            moves, MIN_MOVES, cursor, term_width, term_height);
     
     if (using_colors)
@@ -242,14 +242,14 @@ void render(void) {
     if (term_width < REQ_WIDTH || term_height < REQ_HEIGHT)
         printw("window is too small to render");
     else {
-        render_info();
-
         for (i = 0; i < POLES; i++)
             for (j = 0; j < disks; j++)
                 render_disk(i, j, poles[i][j], POLE_CHAR);
 
         render_disk(POS, disks + 1, DISK, CURSOR_CHAR);
     }
+    
+    render_info();
 
     refresh();
 }
@@ -335,7 +335,7 @@ int main(int argc, char *argv[]) {
     end_ncurses();
 
     if (solved())
-        printf("%s! Completed in %d moves!\n",
+        printf("%s! Completed in %lu moves!\n",
                moves == MIN_MOVES ? "Perfect" : "Well done", moves);
     
     free_poles();
