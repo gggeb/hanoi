@@ -216,7 +216,7 @@ void render(void) {
     else {
         render_info();
 
-        int i, j, d, x, y, k;
+        int i, j;
         for (i = 0; i < POLES; i++)
             for (j = 0; j < disks; j++)
                 render_disk(i, j, poles[i][j], POLE_CHAR);
