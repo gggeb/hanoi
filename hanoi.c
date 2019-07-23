@@ -217,7 +217,7 @@ void render_disk(int pole, int height, int disk, char empty_char)
             attron(COLOR_PAIR(1));
 
         move(y, x);
-        printw("%c", empty_char);
+        addch(empty_char);
     } else {
         x += (MAX_DISK_WIDTH - DISK_WIDTH(disk)) / 2;
 
@@ -226,8 +226,8 @@ void render_disk(int pole, int height, int disk, char empty_char)
 
         for (k = 0; k < DISK_WIDTH(disk); k++, x++) {
             move(y, x);
-            printw("%c", using_colors ? DISK_CHAR
-                                      : (disk % 2 ? ODD_CHAR : EVEN_CHAR));
+            addch(using_colors ? DISK_CHAR
+                               : (disk % 2 ? ODD_CHAR : EVEN_CHAR));
         }
     }
 
@@ -312,7 +312,7 @@ void handle_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    int c;
+    int c = '\0';
 
     handle_args(argc, argv);
 
